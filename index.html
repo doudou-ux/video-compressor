@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>视频压缩工具</title>
     
-    <!-- 更新安全头 -->
+    <!-- 安全头 -->
     <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin" />
     <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp" />
     
     <!-- 更新库的引用 -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.9.8/dist/ffmpeg.min.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/core@0.9.8/dist/ffmpeg-core.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.8.3/dist/ffmpeg.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.8.5/dist/ffmpeg-core.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.7.1/dist/jszip.min.js"></script>
     
     <!-- 添加进度条样式库 -->
@@ -81,15 +81,23 @@
 
         .file-item {
             background-color: #f8f9fa;
-            padding: 15px;
+            padding: 20px;
             border-radius: 8px;
-            margin: 10px 0;
+            margin: 15px 0;
             border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
         }
 
-        .file-item p {
-            margin: 5px 0;
-            color: #495057;
+        .file-item:hover {
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .file-item video {
+            width: 100%;
+            max-height: 200px;
+            object-fit: contain;
+            background-color: #000;
+            margin-bottom: 15px;
         }
 
         .error-message {
@@ -99,6 +107,23 @@
             border-radius: 8px;
             margin: 10px 0;
             border: 1px solid #f5c6cb;
+        }
+
+        .compression-settings {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            margin-top: 20px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            margin-top: 5px;
+            margin-bottom: 15px;
         }
 
         .progress-container {
@@ -112,12 +137,14 @@
         .btn-compress {
             background-color: #28a745;
             color: white;
-            padding: 10px 20px;
+            padding: 12px 24px;
             border: none;
             border-radius: 5px;
             font-size: 1.1em;
             cursor: pointer;
             transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
         }
 
         .btn-compress:hover {
@@ -133,6 +160,24 @@
             color: #6c757d;
             margin-top: 10px;
             font-size: 0.9em;
+            text-align: center;
+        }
+
+        .video-preview {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .video-info {
+            margin-top: 10px;
+            color: #495057;
+        }
+
+        .video-info p {
+            margin: 5px 0;
         }
     </style>
 </head>
@@ -143,8 +188,8 @@
         <div class="instructions">
             <p><strong>支持的视频格式：</strong>MP4, MOV, AVI, MKV</p>
             <p><strong>建议：</strong>单次处理文件总大小不超过4GB</p>
-            <p><strong>压缩设置：</strong>720p分辨率，保持画面清晰度</p>
-            <p><strong>版本：</strong>v1.0.2</p>
+            <p><strong>压缩设置：</strong>可选择不同的质量和分辨率</p>
+            <p><strong>版本：</strong>v1.0.3</p>
         </div>
 
         <div class="upload-area" id="uploadArea">
@@ -161,7 +206,27 @@
         <div id="error" class="error-message" style="display: none;"></div>
         <div id="fileInfo" class="file-info" style="display: none;"></div>
         
-        <button id="compressButton" class="btn-compress w-100" disabled>
+        <div class="compression-settings" id="compressionSettings" style="display: none;">
+            <h4>压缩设置</h4>
+            <div class="form-group">
+                <label for="quality">视频质量：</label>
+                <select class="form-control" id="quality">
+                    <option value="high">高质量 (文件较大)</option>
+                    <option value="medium" selected>中等质量 (推荐)</option>
+                    <option value="low">低质量 (文件最小)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="resolution">输出分辨率：</label>
+                <select class="form-control" id="resolution">
+                    <option value="1080">1080p</option>
+                    <option value="720" selected>720p</option>
+                    <option value="480">480p</option>
+                </select>
+            </div>
+        </div>
+        
+        <button id="compressButton" class="btn-compress" disabled>
             开始压缩
         </button>
         
@@ -169,7 +234,7 @@
             <div class="progress">
                 <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
             </div>
-            <div class="time-remaining text-center" id="timeRemaining"></div>
+            <div class="time-remaining" id="timeRemaining"></div>
         </div>
     </div>
 
@@ -187,6 +252,20 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         };
 
+        const formatDuration = (seconds) => {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        };
+
+        const getVideoDuration = (url) => {
+            return new Promise((resolve) => {
+                const video = document.createElement('video');
+                video.onloadedmetadata = () => resolve(video.duration);
+                video.src = url;
+            });
+        };
+
         const calculateRemainingTime = () => {
             if (!startTime || progress === 0) return '计算中...';
             
@@ -200,7 +279,7 @@
             return `${minutes}分${seconds}秒`;
         };
 
-        document.getElementById('fileInput').addEventListener('change', (e) => {
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
             try {
                 const selectedFiles = Array.from(e.target.files);
                 
@@ -211,17 +290,31 @@
                 
                 files = selectedFiles;
                 document.getElementById('compressButton').disabled = false;
+                document.getElementById('compressionSettings').style.display = 'block';
                 
-                const fileInfoHtml = files.map(file => `
-                    <div class="file-item">
-                        <p>文件名：${file.name}</p>
-                        <p>原始大小：${formatFileSize(file.size)}</p>
-                        <p>预计压缩后：${formatFileSize(file.size * 0.3)}</p>
-                    </div>
-                `).join('');
+                const fileInfoHtml = await Promise.all(files.map(async file => {
+                    const videoUrl = URL.createObjectURL(file);
+                    const duration = await getVideoDuration(videoUrl);
+                    
+                    return `
+                        <div class="file-item">
+                            <div class="video-preview">
+                                <video controls>
+                                    <source src="${videoUrl}" type="${file.type}">
+                                </video>
+                            </div>
+                            <div class="video-info">
+                                <p><strong>文件名：</strong>${file.name}</p>
+                                <p><strong>原始大小：</strong>${formatFileSize(file.size)}</p>
+                                <p><strong>时长：</strong>${formatDuration(duration)}</p>
+                                <p><strong>预计压缩后：</strong>${formatFileSize(file.size * 0.3)}</p>
+                            </div>
+                        </div>
+                    `;
+                }));
                 
                 const fileInfoElement = document.getElementById('fileInfo');
-                fileInfoElement.innerHTML = `<h3>文件信息：</h3>${fileInfoHtml}`;
+                fileInfoElement.innerHTML = `<h3>文件信息：</h3>${fileInfoHtml.join('')}`;
                 fileInfoElement.style.display = 'block';
                 
                 document.getElementById('error').style.display = 'none';
@@ -229,6 +322,7 @@
                 document.getElementById('error').textContent = err.message;
                 document.getElementById('error').style.display = 'block';
                 document.getElementById('fileInfo').style.display = 'none';
+                document.getElementById('compressionSettings').style.display = 'none';
                 document.getElementById('compressButton').disabled = true;
                 files = [];
             }
@@ -236,10 +330,14 @@
 
         document.getElementById('compressButton').addEventListener('click', async () => {
             try {
-                const ffmpeg = FFmpeg.createFFmpeg({
+                const quality = document.getElementById('quality').value;
+                const resolution = document.getElementById('resolution').value;
+                
+                const ffmpeg = createFFmpeg({
                     log: true,
-                    mainName: 'main',
-                    corePath: 'https://unpkg.com/@ffmpeg/core@0.9.8/dist/ffmpeg-core.js'
+                    logger: ({ message }) => console.log(message),
+                    progress: (p) => console.log(p),
+                    corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.8.5/dist/ffmpeg-core.js'
                 });
 
                 await ffmpeg.load();
@@ -254,6 +352,10 @@
                 
                 const compressedFiles = [];
 
+                // 根据质量设置选择压缩参数
+                const crf = quality === 'high' ? '23' : quality === 'medium' ? '28' : '32';
+                const preset = quality === 'high' ? 'slow' : quality === 'medium' ? 'medium' : 'faster';
+
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     ffmpeg.FS('writeFile', file.name, await FFmpeg.fetchFile(file));
@@ -261,12 +363,12 @@
                     await ffmpeg.run(
                         '-i', file.name,
                         '-c:v', 'libx264',
-                        '-crf', '30',
-                        '-preset', 'slower',
-                        '-vf', 'scale=-2:720',
+                        '-crf', crf,
+                        '-preset', preset,
+                        '-vf', `scale=-2:${resolution}`,
                         '-r', '24',
                         '-c:a', 'aac',
-                        '-b:a', '96k',
+                        '-b:a', '128k',
                         '-movflags', '+faststart',
                         `compressed_${file.name}`
                     );
