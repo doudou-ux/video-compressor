@@ -9,9 +9,10 @@
     <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">
     <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
     
-    <!-- 引入特定版本的库以确保稳定性 -->
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.9.8/dist/ffmpeg.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.9.8/dist/ffmpeg-core.js"></script>
+    <!-- 更新库的引用 -->
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.worker.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.7.1/dist/jszip.min.js"></script>
     
     <!-- 添加进度条样式库 -->
@@ -233,28 +234,17 @@
             }
         });
 
+        // 修改后的浏览器兼容性检查
         const checkBrowserCompatibility = () => {
-            const errorElement = document.getElementById('error');
-            if (!crossOriginIsolated) {
-                errorElement.textContent = '请使用以下方式之一打开此页面：\n' +
-                    '1. 使用本地服务器（例如：http-server）\n' +
-                    '2. 使用 HTTPS 网站\n' +
-                    '3. 使用 localhost';
-                errorElement.style.display = 'block';
-                return false;
-            }
             return true;
         };
 
         document.getElementById('compressButton').addEventListener('click', async () => {
             try {
-                if (!checkBrowserCompatibility()) {
-                    throw new Error('浏览器不支持此功能，请查看上述提示');
-                }
-
                 const ffmpeg = FFmpeg.createFFmpeg({ 
                     log: true,
-                    corePath: 'https://unpkg.com/@ffmpeg/core@0.9.8/dist/ffmpeg-core.js'
+                    corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js',
+                    workerPath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.worker.js'
                 });
                 await ffmpeg.load();
 
